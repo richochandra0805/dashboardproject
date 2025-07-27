@@ -1,51 +1,20 @@
-/* Mengubah font utama dan warna latar belakang */
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
-
-html, body, [class*="st-"] {
-    font-family: 'Nunito', sans-serif;
+# Simpan di file style.css
+'''
+body {
+    background-color: #f9f9fb;
+    color: #333;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Latar belakang utama aplikasi */
-[data-testid="stAppViewContainer"] {
-    background-color: #f8f9fc;
+h1, h2, h3, .stTitle, .stSubtitle {
+    color: #006646;
 }
 
-/* Menghilangkan header dan footer bawaan Streamlit */
-header, footer {
-    visibility: hidden !important;
+.sidebar .css-1d391kg, .sidebar .css-1lcbmhc {
+    background-color: #002147;
+    color: white;
 }
 
-/* Memberi gaya pada sidebar */
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #003366 10%, #004D99 100%); /* Gradasi Biru Adaro & ITB */
-}
-
-/* Memberi gaya pada komponen "Card" */
-.card {
-    background-color: white;
-    border-radius: 0.75rem;
-    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
-    border: 1px solid #e3e6f0;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    height: 100%;
-}
-
-.card-title {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #004D99; /* Biru Ganesha ITB */
-    margin-bottom: 1rem;
-}
-
-/* Memberi gaya pada nilai metrik yang besar */
-.metric-value {
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: #3a3b45;
-}
-.metric-label {
-    font-size: 1rem;
-    font-weight: 500;
-    color: #858796;
-}
+/* Streamlit native components tweaks */
+.css-1rs6os.edgvbvh3 { background-color: #e9f5f0; border-radius: 12px; padding: 10px; }
+'''
