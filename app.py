@@ -18,16 +18,25 @@ def load_css(file_name):
         with open(file_name) as f:
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
     except FileNotFoundError:
-        st.error(f"File CSS '{file_name}' tidak ditemukan. Pastikan file ada di folder yang sama.")
+        st.error(f"File CSS '{file_name}' tidak ditemukan.")
 
-# --- FUNGSI UNTUK MEMBACA DATA DARI EXCEL ---
+# --- FUNGSI UNTUK MEMBACA DATA DARI EXCEL (SESUAI PERMINTAAN) ---
 @st.cache_data
 def load_data(filepath):
-    """Memuat semua sheet yang diperlukan dari file Excel."""
+    """
+    Memuat semua sheet yang diperlukan dari file Excel.
+    Pembacaan sheet 'Rangkum' disesuaikan persis dengan skrip referensi Anda.
+    """
     try:
+        # Membaca sheet DASHBOARD untuk data EWS (sesuai poin 1 & 5)
         df_dashboard = pd.read_excel(filepath, sheet_name="DASHBOARD", header=3, usecols="B:C")
-        df_rangkum = pd.read_excel(filepath, sheet_name="Rangkum", header=1, usecols="B:S")
+        # Membersihkan nama kolom untuk mencegah error
+        df_dashboard.columns = df_dashboard.columns.str.strip().str.upper()
+
+        # Membaca sheet Rangkum untuk data utama (sesuai skrip referensi Anda)
+        df_rangkum = pd.read_excel(filepath, sheet_name="Rangkum", header=1, usecols="B:S", engine='openpyxl')
         df_rangkum['Tanggal'] = pd.to_datetime(df_rangkum['Tanggal'])
+        
         return df_dashboard, df_rangkum
     except Exception as e:
         st.error(f"Gagal memuat file Excel '{filepath}'. Pastikan nama sheet benar. Error: {e}")
@@ -56,15 +65,19 @@ st.title(f"📊 {page}")
 
 if df_dashboard is not None and df_rangkum is not None:
     if page == "Dashboard Utama":
-        # --- EWS ---
-        latest_status = df_dashboard.iloc[0]['STATUS']
-        latest_reason = df_dashboard.iloc[0]['Keterangan']
-        st.markdown(f"""
-            <div class="card" style="background-color: {'#1cc88a' if latest_status.lower() == 'aman' else '#f6c23e' if latest_status.lower() == 'waspada' else '#e74a3b'}; color: white; text-align: center;">
-                <h2 style='margin:0; font-size: 2.5rem;'>EWS: {latest_status.upper()}</h2>
-                <p style='margin:0; font-size: 1.1rem;'>{latest_reason}</p>
-            </div>
-        """, unsafe_allow_html=True)
+        # --- EWS (Poin 1 & 5) ---
+        latest_status = df_dashboard.get('STATUS', pd.Series(dtype='str')).iloc[0]
+        latest_reason = df_dashboard.get('KETERANGAN', pd.Series(dtype='str')).iloc[0]
+        
+        if pd.isna(latest_status):
+            st.error("Kolom 'STATUS' tidak ditemukan di sheet DASHBOARD.")
+        else:
+            st.markdown(f"""
+                <div class="card" style="background-color: {'#1cc88a' if str(latest_status).lower() == 'aman' else '#f6c23e' if str(latest_status).lower() == 'waspada' else '#e74a3b'}; color: white; text-align: center;">
+                    <h2 style='margin:0; font-size: 2.5rem;'>EWS: {str(latest_status).upper()}</h2>
+                    <p style='margin:0; font-size: 1.1rem;'>{str(latest_reason)}</p>
+                </div>
+            """, unsafe_allow_html=True)
 
         # --- Filter Tanggal ---
         selected_date = st.date_input("Pilih Tanggal Laporan:", value=df_rangkum['Tanggal'].max())
@@ -86,15 +99,27 @@ if df_dashboard is not None and df_rangkum is not None:
             # --- GRAFIK HARIAN DALAM KARTU ---
             col_chart1, col_chart2 = st.columns([2, 3])
             with col_chart1:
-                with st.container(border=False):
-                    st.markdown('<div class="card"><p class="card-title">Proporsi Status SP</p></div>', unsafe_allow_html=True)
-                    pie_fig = px.pie(df_daily['Kriteria'].value_counts().reset_index(), values='count', names='Kriteria', hole=.4, color='Kriteria', color_discrete_map={'Low': '#28a745', 'Medium': '#F9A825', 'High': '#dc3545'})
-                    st.plotly_chart(pie_fig, use_container_width=True)
+                st.markdown('<div class="card"><p class="card-title">Proporsi Status SP</p></div>', unsafe_allow_html=True)
+                pie_fig = px.pie(df_daily['Kriteria'].value_counts().reset_index(), values='count', names='Kriteria', hole=.4, color='Kriteria', color_discrete_map={'Low': '#28a745', 'Medium': '#F9A825', 'High': '#dc3545'})
+                st.plotly_chart(pie_fig, use_container_width=True)
             with col_chart2:
-                with st.container(border=False):
-                    st.markdown('<div class="card"><p class="card-title">Curah Hujan Maksimal per SP</p></div>', unsafe_allow_html=True)
-                    bar_fig = px.bar(df_daily, x='Max Rainfall to SP (mm)', y='Settling Pond', orientation='h')
-                    st.plotly_chart(bar_fig, use_container_width=True)
+                st.markdown('<div class="card"><p class="card-title">Curah Hujan Maksimal per SP</p></div>', unsafe_allow_html=True)
+                bar_fig = px.bar(df_daily, x='Max Rainfall to SP (mm)', y='Settling Pond', orientation='h')
+                st.plotly_chart(bar_fig, use_container_width=True)
+            
+            # --- DAFTAR SP BERDASARKAN STATUS (FITUR DARI SCRIPT ASLI) ---
+            st.markdown("---")
+            st.markdown('<p class="card-title">Daftar Settling Pond Berdasarkan Status</p>', unsafe_allow_html=True)
+            col_list1, col_list2, col_list3 = st.columns(3)
+            for status, column in [('Low', col_list1), ('Medium', col_list2), ('High', col_list3)]:
+                with column:
+                    st.markdown(f'<div class="card"><h5>Status: {status}</h5></div>', unsafe_allow_html=True)
+                    sp_list = df_daily[df_daily['Kriteria'] == status]['Settling Pond'].tolist()
+                    if sp_list:
+                        for sp in sp_list:
+                            st.markdown(f"- {sp}")
+                    else:
+                        st.info("Tidak ada SP dengan status ini.")
         else:
             st.warning(f"Tidak ada data untuk tanggal {selected_date.strftime('%d-%m-%Y')}.")
 
