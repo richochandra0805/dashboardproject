@@ -1,51 +1,20 @@
-./* Import Font */
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
-
+/* Mengubah font utama dan warna latar belakang */
 body {
-    font-family: 'Nunito', sans-serif;
+    font-family: 'Nunito', sans-serif; /* Font yang mirip SB Admin 2 */
     background-color: #f8f9fc;
-    margin: 0;
-    padding: 0;
 }
 
-/* --- Layout Utama --- */
-.app-container {
-    display: flex;
+/* Menghilangkan header dan footer bawaan Streamlit */
+header, footer {
+    visibility: hidden !important;
 }
 
-.sidebar {
-    width: 250px;
-    background: linear-gradient(180deg, #003366 10%, #004D99 100%); /* Gradasi Adaro & ITB */
-    color: white;
-    padding: 1.5rem;
-    height: 100vh;
-    position: fixed;
+/* Memberi gaya pada sidebar */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #003366 10%, #004D99 100%); /* Gradasi Biru Adaro & ITB */
 }
 
-.main-content {
-    margin-left: 250px; /* Seukuran lebar sidebar */
-    padding: 2rem;
-    width: calc(100% - 250px);
-}
-
-/* --- Komponen Sidebar --- */
-.sidebar-header {
-    text-align: center;
-    margin-bottom: 2rem;
-}
-
-.sidebar-header img {
-    max-width: 80%;
-    margin-bottom: 1rem;
-}
-
-.sidebar-title {
-    font-weight: 700;
-    font-size: 1rem;
-    opacity: 0.8;
-}
-
-/* --- Komponen Card --- */
+/* Memberi gaya pada komponen "Card" */
 .card {
     background-color: white;
     border-radius: 0.75rem;
@@ -56,11 +25,22 @@ body {
     height: 100%;
 }
 
+/* Memberi gaya pada judul di dalam card */
 .card-title {
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     font-weight: 700;
     color: #004D99; /* Biru Ganesha ITB */
     margin-bottom: 1rem;
-    border-bottom: 2px solid #F9A825; /* Kuning Ganesha ITB */
-    padding-bottom: 0.5rem;
+}
+
+/* Memberi gaya pada nilai metrik yang besar */
+.metric-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #3a3b45;
+}
+.metric-label {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #858796;
 }
