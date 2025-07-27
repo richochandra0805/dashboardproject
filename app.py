@@ -1,114 +1,200 @@
-import pandas as pd
-import plotly.express as px
-import streamlit as st
-from datetime import datetime
 
-# --- 1. KONFIGURASI HALAMAN & GAYA ---
-st.set_page_config(
-    page_title="Adaro Water Command Center",
-    page_icon="https://www.adaro.com/adaro-content/themes/adaro/assets/images/favicon.ico",
-    layout="wide"
+import pandas as pd
+
+import plotly.express as px
+
+import streamlit as st
+
+import numpy as np
+
+
+
+# Base Web
+
+st.set_page_config(page_title='Dashboard Water Balance',
+
+                   page_icon=":bar_chart",
+
+                   layout="wide",
+
+                   )
+
+st.title('DASHBOARD WATER BALANCE FOR LW AREA')
+
+
+
+# Import Dataset
+
+excel_file = "Daily_Water_Balance.xlsx"
+
+sheet_name = "Rangkum"
+
+df = pd.read_excel(io=excel_file,
+
+                   engine='openpyxl',
+
+                   sheet_name=sheet_name,
+
+                   usecols='B:S',
+
+                   header=1,
+
+                )
+
+
+
+
+
+# Daily Dashboard
+
+st.subheader('Daily Report')
+
+
+
+# Filter tanggal
+
+ddate = st.date_input("Silahkan pilih tanggal yang ingin diamati:",value=pd.to_datetime('2024/01/01'))
+
+ddate = pd.to_datetime(ddate)
+
+df_daily = df[df['Tanggal'] == ddate]
+
+
+
+# Buat dataframe untuk status SP
+
+low = df_daily.loc[df_daily['Kriteria'] == 'Low']
+
+low = low['Settling Pond'].tolist()
+
+medium = df_daily.loc[df_daily['Kriteria'] == 'Medium']
+
+medium = medium['Settling Pond'].tolist()
+
+high = df_daily.loc[df_daily['Kriteria'] == 'High']
+
+high = high['Settling Pond'].tolist()
+
+daily_bar = px.bar(
+
+    df_daily,
+
+    x='Max Rainfall to SP (mm)',
+
+    y='Settling Pond',
+
+    orientation='h',
+
+    title='Max Rainfall to SP',
+
 )
 
-# --- FUNGSI UNTUK MEMBACA DAN MENYUNTIKKAN CSS ---
-def load_css(file_name):
-    try:
-        with open(file_name) as f:
-            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-    except FileNotFoundError:
-        st.error(f"File CSS '{file_name}' tidak ditemukan.")
 
-# --- FUNGSI UNTUK MEMBACA DATA DARI EXCEL ---
-@st.cache_data
-def load_data(filepath):
-    try:
-        df_dashboard = pd.read_excel(filepath, sheet_name="DASHBOARD", header=3, usecols="B:C")
-        df_rangkum = pd.read_excel(filepath, sheet_name="Rangkum", header=1, usecols="B:S")
-        df_rangkum['Tanggal'] = pd.to_datetime(df_rangkum['Tanggal'])
-        return df_dashboard, df_rangkum
-    except Exception as e:
-        st.error(f"Gagal memuat file Excel '{filepath}'. Pastikan nama sheet benar. Error: {e}")
-        return None, None
 
-# --- EKSEKUSI UTAMA ---
-load_css("style.css")
-df_dashboard, df_rangkum = load_data("Daily_Water_Balance.xlsx")
+# Buat dataframe untuk Piechart
 
-# --- SIDEBAR NAVIGASI ---
-with st.sidebar:
-    st.image("https://www.adaro.com/adaro-content/themes/adaro/assets/images/logo_adaro_energy.png", width=180)
-    st.image("assets/logo_itb.png", width=90)
-    st.header("Adaro-ITB Partnership")
-    st.markdown("---")
-    
-    page = st.radio(
-        "Pilih Halaman Navigasi:",
-        ("Dashboard Utama", "Cuaca & Proyeksi Iklim", "Simulasi & Media")
-    )
-    st.markdown("---")
-    st.info(f"© {datetime.now().year} Adaro Indonesia")
+status_counts = df_daily['Kriteria'].value_counts()
 
-# --- KONTEN UTAMA ---
-st.title(f"📊 {page}")
+status_counts = status_counts.to_frame(name='Jumlah')
 
-if df_dashboard is not None and df_rangkum is not None:
-    if page == "Dashboard Utama":
-        # --- EWS ---
-        latest_status = df_dashboard.iloc[0]['STATUS']
-        latest_reason = df_dashboard.iloc[0]['Keterangan']
-        st.markdown(f"""
-            <div class="card" style="background-color: {'#1cc88a' if latest_status.lower() == 'aman' else '#f6c23e' if latest_status.lower() == 'waspada' else '#e74a3b'}; color: white; text-align: center;">
-                <h2 style='margin:0; font-size: 2.5rem;'>EWS: {latest_status.upper()}</h2>
-                <p style='margin:0; font-size: 1.1rem;'>{latest_reason}</p>
-            </div>
-        """, unsafe_allow_html=True)
 
-        # --- Filter Tanggal ---
-        selected_date = st.date_input("Pilih Tanggal Laporan:", value=df_rangkum['Tanggal'].max())
-        df_daily = df_rangkum[df_rangkum['Tanggal'] == pd.to_datetime(selected_date)].copy()
 
-        if not df_daily.empty:
-            summary = df_daily.iloc[0]
-            # --- METRIK UTAMA DALAM KARTU ---
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.markdown(f'<div class="card"><p class="metric-label">Water Level (PIT)</p><p class="metric-value">{summary["Freeboard (Elevasi Actual) (Rl)"]:.2f} m</p></div>', unsafe_allow_html=True)
-            with col2:
-                st.markdown(f'<div class="card"><p class="metric-label">Sisa Freeboard</p><p class="metric-value">{summary["Sisa Freeboard (m)"]:.2f} m</p></div>', unsafe_allow_html=True)
-            with col3:
-                st.markdown(f'<div class="card"><p class="metric-label">TSS Inflow</p><p class="metric-value">{summary["TSS Inflow (ton)"]:.2f} ton</p></div>', unsafe_allow_html=True)
-            with col4:
-                st.markdown(f'<div class="card"><p class="metric-label">TSS Outflow</p><p class="metric-value">{summary["TSS Outflow (ton)"]:.2f} ton</p></div>', unsafe_allow_html=True)
-            
-            # --- GRAFIK HARIAN DALAM KARTU ---
-            col_chart1, col_chart2 = st.columns([2, 3])
-            with col_chart1:
-                st.markdown('<div class="card"><p class="card-title">Proporsi Status SP</p></div>', unsafe_allow_html=True)
-                pie_fig = px.pie(df_daily['Kriteria'].value_counts().reset_index(), values='count', names='Kriteria', hole=.4, color='Kriteria', color_discrete_map={'Low': '#28a745', 'Medium': '#F9A825', 'High': '#dc3545'})
-                st.plotly_chart(pie_fig, use_container_width=True)
-            with col_chart2:
-                st.markdown('<div class="card"><p class="card-title">Curah Hujan Maksimal per SP</p></div>', unsafe_allow_html=True)
-                bar_fig = px.bar(df_daily, x='Max Rainfall to SP (mm)', y='Settling Pond', orientation='h')
-                st.plotly_chart(bar_fig, use_container_width=True)
-        else:
-            st.warning(f"Tidak ada data untuk tanggal {selected_date.strftime('%d-%m-%Y')}.")
+# Plot Piechart
 
-    elif page == "Cuaca & Proyeksi Iklim":
-        st.markdown('<div class="card"><p class="card-title">Pantauan Cuaca dan Proyeksi Perubahan Iklim</p></div>', unsafe_allow_html=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Cuaca Saat Ini (Real-time)")
-            st.info("Fitur ini memerlukan API Key dari Wunderground/Weather.com")
-            st.metric("Suhu", "28°C", "Cerah Berawan")
-            st.metric("Curah Hujan (1 jam terakhir)", "0.2 mm")
-        with col2:
-            st.subheader("Proyeksi Iklim Jangka Panjang")
-            ssp_scenario = st.selectbox("Pilih Skenario Proyeksi:", ('SSP1-2.6', 'SSP2-4.5', 'SSP5-8.5'))
-            st.image("assets/ssp_projection.gif", caption=f"Animasi proyeksi untuk skenario {ssp_scenario}")
+pie_chart = px.pie(status_counts,
 
-    elif page == "Simulasi & Media":
-        st.markdown('<div class="card"><p class="card-title">Simulasi Visual Luapan Void Paringin</p></div>', unsafe_allow_html=True)
-        st.video("assets/simulasi_luapan.mp4")
+                   title="SP Status "+str(ddate.strftime('%d-%m-%Y')),
 
-else:
-    st.error("Gagal memuat data. Pastikan file Daily_Water_Balance.xlsx ada di folder yang sama.")
+                   values='Jumlah',
+
+                   names=status_counts.index,
+
+                #    width=350
+
+                   )
+
+pie_chart.update_traces(textinfo='value')
+
+
+
+# Visualisasi
+
+# Plot
+
+col1,col2 = st.columns(2)
+
+col1.plotly_chart(pie_chart)
+
+col2.plotly_chart(daily_bar)
+
+# Keterangan
+
+col1, col2, col3 = st.columns(3)
+
+col1.write("SP Low Status:")
+
+for i in range(len(low)):
+
+    col1.write(str(i+1)+". "+str(low[i]))
+
+col2.write("SP Medium Status:")
+
+for i in range(len(medium)):
+
+    col2.write(str(i+1)+". "+str(medium[i]))
+
+col3.write("SP High Status:")
+
+for i in range(len(high)):
+
+    col3.write(str(i+1)+". "+str(high[i]))
+
+
+
+
+
+# Historical Dashboard
+
+st.subheader('Historical Report')
+
+sisa=px.line(df,
+
+        x='Tanggal',
+
+        y='Sisa Freeboard (m)',
+
+        color='Settling Pond',
+
+        width=1250,
+
+        title="Sisa Freeboard",
+
+        line_shape='spline'
+
+        )
+
+debit=px.line(df,
+
+        x='Tanggal',
+
+        y='Debit Keluar Actual (m3/s)',
+
+        color='Settling Pond',
+
+        width=1250,
+
+        title="Debit Keluar",
+
+        line_shape='spline'
+
+        )
+
+st.plotly_chart(sisa)
+
+st.plotly_chart(debit)
+
+
+
+st.subheader('Data Summary')
+
+st.dataframe(df)
