@@ -1,5 +1,5 @@
-panel
+streamlit
 pandas
 plotly
 openpyxl
-gunicorn
+requests
