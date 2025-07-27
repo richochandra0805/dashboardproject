@@ -1,7 +1,6 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-import requests
 from datetime import datetime
 
 # --- 1. KONFIGURASI HALAMAN & GAYA ---
@@ -20,26 +19,30 @@ def load_css(file_name):
     except FileNotFoundError:
         st.error(f"File CSS '{file_name}' tidak ditemukan.")
 
-# --- FUNGSI UNTUK MEMBACA DATA DARI EXCEL (SESUAI SCRIPT ANDA) ---
+# --- FUNGSI UNTUK MEMBACA DATA DARI EXCEL ---
 @st.cache_data
 def load_data(filepath):
-    """Memuat semua sheet yang diperlukan dari file Excel."""
+    """
+    Memuat semua sheet yang diperlukan dari file Excel.
+    Fungsi ini dibuat lebih andal untuk mencegah error saat deploy.
+    """
     try:
-        # Membaca sheet Rangkum untuk data utama (dari skrip asli Anda)
+        # Menggunakan logika dari skrip Anda untuk data utama
         df_rangkum = pd.read_excel(filepath, sheet_name="Rangkum", header=1, usecols="B:S", engine='openpyxl')
         df_rangkum['Tanggal'] = pd.to_datetime(df_rangkum['Tanggal'])
         
-        # Membaca sheet DASHBOARD untuk data EWS
+        # Membaca sheet DASHBOARD secara terpisah untuk EWS
         df_dashboard = pd.read_excel(filepath, sheet_name="DASHBOARD", header=3, usecols="B:C")
         
         return df_dashboard, df_rangkum
     except Exception as e:
-        st.error(f"Gagal memuat file Excel '{filepath}'. Pastikan file ada dan nama sheet benar. Error: {e}")
+        st.error(f"Gagal memuat file Excel '{filepath}'. Pastikan file ada dan nama sheet (Rangkum, DASHBOARD) sudah benar. Error: {e}")
         return None, None
 
 # --- EKSEKUSI UTAMA ---
 load_css("style.css")
-df_dashboard, df_rangkum = load_data("Daily_Water_Balance.xlsx")
+# Menggunakan variabel 'df' seperti di skrip asli Anda untuk data utama
+df_dashboard, df = load_data("Daily_Water_Balance.xlsx")
 
 # --- SIDEBAR NAVIGASI ---
 with st.sidebar:
@@ -50,7 +53,7 @@ with st.sidebar:
     
     page = st.radio(
         "Pilih Halaman Navigasi:",
-        ("Dashboard Utama", "Laporan Historis", "Cuaca & Proyeksi Iklim", "Simulasi & Media")
+        ("Laporan Harian", "Laporan Historis", "Cuaca & Proyeksi Iklim", "Simulasi & Media")
     )
     st.markdown("---")
     st.info(f"© {datetime.now().year} Adaro Indonesia")
@@ -58,8 +61,9 @@ with st.sidebar:
 # --- KONTEN UTAMA ---
 st.title(f"📊 {page}")
 
-if df_dashboard is not None and df_rangkum is not None:
-    if page == "Dashboard Utama":
+# Pemeriksaan data setelah dimuat untuk mencegah error
+if df is not None and df_dashboard is not None:
+    if page == "Laporan Harian":
         # --- EWS (Poin 1 & 5) ---
         latest_status = df_dashboard.iloc[0]['STATUS']
         latest_reason = df_dashboard.iloc[0]['Keterangan']
@@ -70,23 +74,27 @@ if df_dashboard is not None and df_rangkum is not None:
             </div>
         """, unsafe_allow_html=True)
 
-        # --- Filter Tanggal ---
-        selected_date = st.date_input("Pilih Tanggal Laporan:", value=df_rangkum['Tanggal'].max())
-        df_daily = df_rangkum[df_rangkum['Tanggal'] == pd.to_datetime(selected_date)].copy()
+        # --- Filter Tanggal (dari skrip asli Anda) ---
+        ddate = st.date_input("Silahkan pilih tanggal yang ingin diamati:", value=df['Tanggal'].max())
+        ddate = pd.to_datetime(ddate)
+        df_daily = df[df['Tanggal'] == ddate]
 
         if not df_daily.empty:
             # --- GRAFIK HARIAN DALAM KARTU ---
             col_chart1, col_chart2 = st.columns([2, 3])
             with col_chart1:
                 st.markdown('<div class="card"><p class="card-title">Proporsi Status SP</p></div>', unsafe_allow_html=True)
-                pie_fig = px.pie(df_daily['Kriteria'].value_counts().reset_index(), values='count', names='Kriteria', hole=.4, color='Kriteria', color_discrete_map={'Low': '#28a745', 'Medium': '#F9A825', 'High': '#dc3545'})
-                st.plotly_chart(pie_fig, use_container_width=True)
+                # Menggunakan logika dari skrip asli Anda
+                status_counts = df_daily['Kriteria'].value_counts().to_frame(name='Jumlah')
+                pie_chart = px.pie(status_counts, title=f"Status SP {ddate.strftime('%d-%m-%Y')}", values='Jumlah', names=status_counts.index, hole=.4,
+                                   color=status_counts.index, color_discrete_map={'Low': '#28a745', 'Medium': '#F9A825', 'High': '#dc3545'})
+                st.plotly_chart(pie_chart, use_container_width=True)
             with col_chart2:
                 st.markdown('<div class="card"><p class="card-title">Curah Hujan Maksimal per SP</p></div>', unsafe_allow_html=True)
-                bar_fig = px.bar(df_daily, x='Max Rainfall to SP (mm)', y='Settling Pond', orientation='h')
-                st.plotly_chart(bar_fig, use_container_width=True)
+                daily_bar = px.bar(df_daily, x='Max Rainfall to SP (mm)', y='Settling Pond', orientation='h', title='Max Rainfall to SP')
+                st.plotly_chart(daily_bar, use_container_width=True)
             
-            # --- DAFTAR SP BERDASARKAN STATUS (FITUR DARI SCRIPT ASLI ANDA) ---
+            # --- DAFTAR SP BERDASARKAN STATUS (dari skrip asli Anda) ---
             st.markdown("---")
             st.markdown('<p class="card-title">Daftar Settling Pond Berdasarkan Status</p>', unsafe_allow_html=True)
             col_list1, col_list2, col_list3 = st.columns(3)
@@ -100,15 +108,15 @@ if df_dashboard is not None and df_rangkum is not None:
                     else:
                         st.info("Tidak ada SP dengan status ini.")
         else:
-            st.warning(f"Tidak ada data untuk tanggal {selected_date.strftime('%d-%m-%Y')}.")
+            st.warning(f"Tidak ada data untuk tanggal {ddate.strftime('%d-%m-%Y')}.")
 
     elif page == "Laporan Historis":
         st.markdown('<div class="card"><p class="card-title">Tren Historis Sisa Freeboard</p></div>', unsafe_allow_html=True)
-        sisa_fig = px.line(df_rangkum, x='Tanggal', y='Sisa Freeboard (m)', color='Settling Pond', line_shape='spline')
+        sisa_fig = px.line(df, x='Tanggal', y='Sisa Freeboard (m)', color='Settling Pond', title="Sisa Freeboard", line_shape='spline')
         st.plotly_chart(sisa_fig, use_container_width=True)
 
         st.markdown('<div class="card"><p class="card-title">Tren Historis Debit Keluar Aktual</p></div>', unsafe_allow_html=True)
-        debit_fig = px.line(df_rangkum, x='Tanggal', y='Debit Keluar Actual (m3/s)', color='Settling Pond', line_shape='spline')
+        debit_fig = px.line(df, x='Tanggal', y='Debit Keluar Actual (m3/s)', color='Settling Pond', title="Debit Keluar", line_shape='spline')
         st.plotly_chart(debit_fig, use_container_width=True)
 
     elif page == "Cuaca & Proyeksi Iklim":
@@ -129,4 +137,4 @@ if df_dashboard is not None and df_rangkum is not None:
         st.video("assets/simulasi_luapan.mp4")
 
 else:
-    st.error("Gagal memuat data. Pastikan file Daily_Water_Balance.xlsx ada di folder yang sama.")
+    st.error("Gagal memuat data. Pastikan file Daily_Water_Balance.xlsx ada di folder yang sama dan tidak rusak.")
