@@ -1,6 +1,12 @@
 /* Mengubah font utama dan warna latar belakang */
-body {
-    font-family: 'Nunito', sans-serif; /* Font yang mirip SB Admin 2 */
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
+
+html, body, [class*="st-"] {
+    font-family: 'Nunito', sans-serif;
+}
+
+/* Latar belakang utama aplikasi */
+[data-testid="stAppViewContainer"] {
     background-color: #f8f9fc;
 }
 
@@ -25,7 +31,6 @@ header, footer {
     height: 100%;
 }
 
-/* Memberi gaya pada judul di dalam card */
 .card-title {
     font-size: 1.2rem;
     font-weight: 700;
