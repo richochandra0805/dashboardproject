@@ -1,27 +1,35 @@
 import dash
-from dash import dcc, html
-from dash.dependencies import Input, Output
+from dash import dcc, html, Input, Output
 import plotly.express as px
 import pandas as pd
+from datetime import datetime
 
-# --- Inisialisasi Aplikasi Dash ---
-app = dash.Dash(__name__)
-server = app.server # Untuk keperluan hosting
+# Inisialisasi Aplikasi Dash
+app = dash.Dash(__name__, title="Adaro Water Command Center", suppress_callback_exceptions=True)
+server = app.server
 
 # --- Fungsi untuk Membaca Data ---
-def load_data(filepath):
-    df_dashboard = pd.read_excel(filepath, sheet_name="DASHBOARD", header=3, usecols="B:C")
-    df_rangkum = pd.read_excel(filepath, sheet_name="Rangkum", header=1, usecols="B:S")
-    df_rangkum['Tanggal'] = pd.to_datetime(df_rangkum['Tanggal'])
-    return df_dashboard, df_rangkum
+@app.callback(
+    Output('data-store', 'data'),
+    Input('interval-component', 'n_intervals')
+)
+def load_data_periodically(n):
+    """Memuat ulang data dari Excel secara berkala untuk menjaga data tetap segar."""
+    try:
+        df_dashboard = pd.read_excel("Daily_Water_Balance.xlsx", sheet_name="DASHBOARD", header=3, usecols="B:C")
+        df_rangkum = pd.read_excel("Daily_Water_Balance.xlsx", sheet_name="Rangkum", header=1, usecols="B:S")
+        df_rangkum['Tanggal'] = pd.to_datetime(df_rangkum['Tanggal'])
+        return {'df_dashboard': df_dashboard.to_dict('records'), 'df_rangkum': df_rangkum.to_dict('records')}
+    except FileNotFoundError:
+        return {'df_dashboard': [], 'df_rangkum': []}
 
-# --- Memuat Data ---
-df_dashboard, df_rangkum = load_data("Daily_Water_Balance.xlsx")
-default_date = df_rangkum['Tanggal'].max()
-
-# --- Layout Aplikasi (Struktur HTML) ---
-app.layout = html.Div(className="app-container", children=[
-    # --- Sidebar ---
+# --- Layout Aplikasi Utama ---
+# Layout ini hanya berisi kerangka dan komponen input
+app.layout = html.Div([
+    dcc.Store(id='data-store'),
+    dcc.Interval(id='interval-component', interval=10*60*1000, n_intervals=0),
+    
+    # --- Sidebar (Statis) ---
     html.Div(className="sidebar", children=[
         html.Div(className="sidebar-header", children=[
             html.Img(src="https://www.adaro.com/adaro-content/themes/adaro/assets/images/logo_adaro_energy.png"),
@@ -32,82 +40,89 @@ app.layout = html.Div(className="app-container", children=[
         html.P("Pilih Tanggal Laporan:", style={'font-weight': '600'}),
         dcc.DatePickerSingle(
             id='date-picker',
-            min_date_allowed=df_rangkum['Tanggal'].min(),
-            max_date_allowed=df_rangkum['Tanggal'].max(),
-            initial_visible_month=default_date,
-            date=default_date,
-            display_format='DD MMMM YYYY'
+            display_format='DD MMMM YYYY',
+            style={'width': '100%'}
         )
     ]),
 
-    # --- Konten Utama ---
-    html.Div(className="main-content", children=[
-        html.H1("Water Balance Command Center"),
-        html.P(f"Menampilkan Laporan Untuk Tanggal: {default_date.strftime('%d %B %Y')}", id='selected-date-text'),
-        
-        # --- Card untuk Status EWS ---
-        html.Div(id='ews-card', className="card"),
-
-        # --- Grid untuk Metrik Utama ---
-        html.Div(className="row", style={'display': 'flex', 'gap': '1rem'}, children=[
-            html.Div(id='metric-card-1', className="col-md-3", style={'flex': '1'}),
-            html.Div(id='metric-card-2', className="col-md-3", style={'flex': '1'}),
-            html.Div(id='metric-card-3', className="col-md-3", style={'flex': '1'}),
-            html.Div(id='metric-card-4', className="col-md-3", style={'flex': '1'}),
-        ]),
-
-        # --- Grid untuk Grafik Harian ---
-        html.Div(className="row", style={'display': 'flex', 'gap': '1rem'}, children=[
-            html.Div(dcc.Graph(id='pie-chart'), className="col-md-5", style={'flex': '5'}),
-            html.Div(dcc.Graph(id='bar-chart'), className="col-md-7", style={'flex': '7'}),
-        ]),
-    ])
+    # --- Konten Utama (Awalnya kosong, diisi oleh callback) ---
+    html.Div(id='main-content', className="main-content")
 ])
 
-# --- INTERAKTIVITAS (CALLBACK) ---
+# --- Callback untuk mengisi dan memperbarui seluruh konten utama ---
 @app.callback(
-    [Output('selected-date-text', 'children'),
-     Output('ews-card', 'children'),
-     Output('metric-card-1', 'children'),
-     Output('metric-card-2', 'children'),
-     Output('metric-card-3', 'children'),
-     Output('metric-card-4', 'children'),
-     Output('pie-chart', 'figure'),
-     Output('bar-chart', 'figure')],
-    [Input('date-picker', 'date')]
+    Output('main-content', 'children'),
+    [Input('date-picker', 'date'),
+     Input('data-store', 'data')]
 )
-def update_dashboard(selected_date):
-    # Filter data berdasarkan tanggal yang dipilih
+def update_main_content(selected_date, stored_data):
+    # Jika data belum dimuat, tampilkan pesan
+    if not stored_data or not stored_data.get('df_rangkum'):
+        return html.Div("Memuat data atau file Excel tidak ditemukan...", className="card")
+
+    # Konversi data dari store kembali ke DataFrame
+    df_dashboard = pd.DataFrame(stored_data['df_dashboard'])
+    df_rangkum = pd.DataFrame(stored_data['df_rangkum'])
+    df_rangkum['Tanggal'] = pd.to_datetime(df_rangkum['Tanggal'])
+
+    # Atur tanggal default jika belum dipilih
+    if selected_date is None:
+        selected_date = df_rangkum['Tanggal'].max()
+
     df_daily = df_rangkum[df_rangkum['Tanggal'] == pd.to_datetime(selected_date)].copy()
-    
+
     if df_daily.empty:
-        # Jika tidak ada data, kembalikan tampilan kosong/pesan error
-        return (f"Tidak ada data untuk tanggal: {selected_date}", 
-                html.Div("Data tidak tersedia", className="card"),
-                # ... kembalikan komponen kosong lainnya ...
-               )
+        return html.Div([
+            html.H1("Water Management Command Center"),
+            html.Div(f"Tidak ada data untuk tanggal: {pd.to_datetime(selected_date).strftime('%d %B %Y')}", className="card")
+        ])
 
-    # 1. Update Teks Tanggal
-    date_text = f"Menampilkan Laporan Untuk Tanggal: {pd.to_datetime(selected_date).strftime('%d %B %Y')}"
-    
-    # 2. Update EWS
-    status = df_dashboard.iloc[0]['STATUS'] # Diasumsikan EWS selalu dari data terbaru
+    # Ambil data EWS, Metrik, dan buat Grafik
+    status = df_dashboard.iloc[0]['STATUS']
     reason = df_dashboard.iloc[0]['Keterangan']
-    ews_card = html.Div([html.H2(f"EWS: {status.upper()}", style={'margin': 0}), html.P(reason)])
-
-    # 3. Update Metrik
     summary = df_daily.iloc[0]
+
+    # Buat semua komponen visual
+    ews_card = html.Div([html.H2(f"EWS: {status.upper()}", style={'margin': 0}), html.P(reason)], className="card")
     metric1 = html.Div([html.P("Water Level (PIT)", className="metric-label"), html.H3(f"{summary['Freeboard (Elevasi Actual) (Rl)']:.2f} m", className="metric-value")], className="card")
     metric2 = html.Div([html.P("Sisa Freeboard", className="metric-label"), html.H3(f"{summary['Sisa Freeboard (m)']:.2f} m", className="metric-value")], className="card")
     metric3 = html.Div([html.P("TSS Inflow", className="metric-label"), html.H3(f"{summary['TSS Inflow (ton)']:.2f} ton", className="metric-value")], className="card")
     metric4 = html.Div([html.P("TSS Outflow", className="metric-label"), html.H3(f"{summary['TSS Outflow (ton)']:.2f} ton", className="metric-value")], className="card")
-
-    # 4. Update Grafik
-    pie_fig = px.pie(df_daily['Kriteria'].value_counts().reset_index(), values='count', names='Kriteria', title="Proporsi Status SP")
-    bar_fig = px.bar(df_daily, x='Max Rainfall to SP (mm)', y='Settling Pond', orientation='h', title='Curah Hujan Maksimal per SP')
     
-    return date_text, ews_card, metric1, metric2, metric3, metric4, pie_fig, bar_fig
+    pie_fig = px.pie(df_daily['Kriteria'].value_counts().reset_index(), values='count', names='Kriteria', title="Proporsi Status SP", color='Kriteria', color_discrete_map={'Low': '#28a745', 'Medium': '#F9A825', 'High': '#dc3545'})
+    bar_fig = px.bar(df_daily, x='Max Rainfall to SP (mm)', y='Settling Pond', orientation='h', title='Curah Hujan Maksimal per SP')
 
-# --- Menjalankan Server ---
+    # Kembalikan seluruh layout konten utama
+    return html.Div([
+        html.H1("Water Management Command Center"),
+        html.P(f"Menampilkan Laporan Untuk Tanggal: {pd.to_datetime(selected_date).strftime('%d %B %Y')}"),
+        ews_card,
+        html.Div([metric1, metric2, metric3, metric4], style={'display': 'grid', 'gridTemplateColumns': 'repeat(4, 1fr)', 'gap': '1rem'}),
+        html.Div([
+            html.Div(dcc.Graph(figure=pie_fig), className="card"),
+            html.Div(dcc.Graph(figure=bar_fig), className="card")
+        ], style={'display': 'grid', 'gridTemplateColumns': '3fr 7fr', 'gap': '1rem'}),
+    ])
+
+# Callback untuk mengatur tanggal awal pada DatePicker setelah data dimuat
+@app.callback(
+    [Output('date-picker', 'date'),
+     Output('date-picker', 'min_date_allowed'),
+     Output('date-picker', 'max_date_allowed'),
+     Output('date-picker', 'initial_visible_month')],
+    Input('data-store', 'data')
+)
+def set_initial_date(data):
+    if not data or not data.get('df_rangkum'):
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    
+    df_rangkum = pd.DataFrame(data['df_rangkum'])
+    df_rangkum['Tanggal'] = pd.to_datetime(df_rangkum['Tanggal'])
+    
+    min_date = df_rangkum['Tanggal'].min().date()
+    max_date = df_rangkum['Tanggal'].max().date()
+    
+    return max_date, min_date, max_date, max_date
+
 if __name__ == '__main__':
     app.run_server(debug=True)
