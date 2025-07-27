@@ -1,5 +1,5 @@
-dash
-plotly
+panel
 pandas
+plotly
 openpyxl
 gunicorn
